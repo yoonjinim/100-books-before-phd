@@ -900,9 +900,9 @@ let ownerMode = new URLSearchParams(location.search).get('edit') === 'ekehrgksms
 // ── Supabase ───────────────────────────────────────────
 const SUPABASE_URL = 'https://tpjljzcfmtnteljnjmyz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_H_WXNAfph2KvgJo8AUfFaQ_D4Ft6T6V';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const TABLE = '100-books-before-phd';
-console.log('Supabase client initialized:', supabase);
+console.log('Supabase client initialized:', sb);
 
 // ── State & storage ────────────────────────────────────
 const KEY = 'booksv3';
