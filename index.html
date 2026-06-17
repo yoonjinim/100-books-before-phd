@@ -730,6 +730,7 @@ body {
 
 
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 <div class="app">
@@ -895,6 +896,13 @@ body {
 <script>
 // ── Auth (URL param: ?edit=true for owner mode) ────────
 let ownerMode = new URLSearchParams(location.search).get('edit') === 'ekehrgksmsdbssks';
+
+// ── Supabase ───────────────────────────────────────────
+const SUPABASE_URL = 'https://tpjljzcfmtnteljnjmyz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_H_WXNAfph2KvgJo8AUfFaQ_D4Ft6T6V';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const TABLE = '100-books-before-phd';
+console.log('Supabase client initialized:', supabase);
 
 // ── State & storage ────────────────────────────────────
 const KEY = 'booksv3';
