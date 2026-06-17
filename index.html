@@ -923,6 +923,16 @@ const filterOpen = { list: false, covers: false, quotes: false, genre: false };
 function load()    { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
 function persist(b){ localStorage.setItem(KEY, JSON.stringify(b)); }
 
+async function loadFromSupabase() {
+  const { data, error } = await sb.from(TABLE).select('*').order('createdAt', { ascending: true });
+  if (error) {
+    console.error('Supabase load error:', error);
+    toast('데이터를 불러오지 못했습니다 (' + error.message + ')');
+    return [];
+  }
+  return data || [];
+}
+
 // ── Filter helpers ─────────────────────────────────────
 function toggleFilterOpen(v) { filterOpen[v] = !filterOpen[v]; render(); }
 
@@ -1487,6 +1497,10 @@ function toast(msg) {
 
 // ── Init ───────────────────────────────────────────────
 render();
+
+loadFromSupabase().then(rows => {
+  console.log('Supabase rows fetched:', rows.length, rows.slice(0,2));
+});
 </script>
 </body>
 </html>
