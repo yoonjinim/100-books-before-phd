@@ -277,6 +277,30 @@ body {
 .gcard-title  { font-size: 11px; font-weight: 700; line-height: 1.3; margin-bottom: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .gcard-author { font-size: 10px; color: var(--muted); }
 
+/* ── Filter toggle bar ────────────────────────────────── */
+.filter-bar { display: flex; align-items: center; margin-bottom: 8px; }
+.filter-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all .15s;
+}
+.filter-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.filter-toggle.has-filter { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.filter-badge { background: var(--accent); color: #fff; border-radius: 8px; padding: 1px 5px; font-size: 10px; font-weight: 700; line-height: 1.4; }
+.filter-panel { display: none; padding-bottom: 2px; }
+.filter-panel.open { display: block; }
+.filter-result { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+
 /* ── Cover year chips ──────────────────────────────────── */
 .cov-chips {
   display: flex;
@@ -306,9 +330,9 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px;
+  padding: 8px 12px;
   display: flex;
-  gap: 12px;
+  gap: 10px;
   box-shadow: var(--sh-sm);
 }
 .qthumb {
@@ -388,7 +412,7 @@ body {
 .yr-chev { font-size: 11px; color: var(--muted); display: inline-block; transition: transform .2s; }
 .yr-row.open .yr-chev { transform: rotate(180deg); }
 .yr-books { display: none; border-top: 1px solid var(--border); padding: 6px 0; }
-.yr-books.open { display: block; }
+.yr-books.open { display: block; max-height: 432px; overflow-y: auto; }
 .yr-book-row {
   display: flex;
   align-items: center;
@@ -876,15 +900,51 @@ let ownerMode = new URLSearchParams(location.search).get('edit') === 'true';
 const KEY = 'booksv3';
 let curView = 'list';
 let editId      = null;
-let coversYear  = '전체';
-let genreYear   = '전체';
-let openGenre   = null;
-let openYear    = null;
-let listYear    = '전체';
-let listStatus  = '전체';
+let coversYear   = '전체';
+let coversStatus = '전체';
+let genreYear    = '전체';
+let genreStatus  = '전체';
+let openGenre    = null;
+let openYear     = null;
+let listYear     = '전체';
+let listStatus   = '전체';
+let quotesYear   = '전체';
+let quotesStatus = '전체';
+const filterOpen = { list: false, covers: false, quotes: false, genre: false };
 
 function load()    { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
 function persist(b){ localStorage.setItem(KEY, JSON.stringify(b)); }
+
+// ── Filter helpers ─────────────────────────────────────
+function toggleFilterOpen(v) { filterOpen[v] = !filterOpen[v]; render(); }
+
+function fBtn(v, yr, status) {
+  const n = (yr !== '전체' ? 1 : 0) + (status !== '전체' ? 1 : 0);
+  const badge = n > 0 ? `<span class="filter-badge">${n}</span>` : '';
+  return `<div class="filter-bar">
+    <button class="filter-toggle${n > 0 ? ' has-filter' : ''}" onclick="toggleFilterOpen('${v}')">필터 ${filterOpen[v] ? '▴' : '▾'}${badge}</button>
+  </div>`;
+}
+
+function fResult(yr, status, count) {
+  if (yr === '전체' && status === '전체') return '';
+  const parts = [];
+  if (yr !== '전체') parts.push(yr);
+  if (status !== '전체') parts.push(status);
+  return `<div class="filter-result">${parts.join(' · ')} — ${count}권</div>`;
+}
+
+function yearChipsHTML(years, activeYr, onclickFn) {
+  return ['전체', ...years].map(yr =>
+    `<button class="cov-chip ${activeYr === yr ? 'active' : ''}" onclick="${onclickFn}('${yr}')">${yr}</button>`
+  ).join('');
+}
+
+function statusChipsHTML(activeStatus, onclickFn) {
+  return ['전체', '완독', '읽는 중', '읽을 예정', '중도 하차'].map(s =>
+    `<button class="cov-chip ${activeStatus === s ? 'active' : ''}" onclick="${onclickFn}('${s}')">${s}</button>`
+  ).join('');
+}
 
 // ── View router ────────────────────────────────────────
 function go(name) {
@@ -913,21 +973,8 @@ function renderList(books) {
   const el = document.getElementById('v-list');
   if (!books.length) { el.innerHTML = empty('📖', '아직 기록된 책이 없어요.<br>첫 번째 책을 추가해 보세요!'); return; }
 
-  // Year chips from ALL books' year field, newest first
-  const years = [...new Set(books.map(b => b.year).filter(Boolean))]
-    .sort((a, b) => Number(b) - Number(a));
-  const yearChips = ['전체', ...years].map(yr =>
-    `<button class="cov-chip ${listYear === yr ? 'active' : ''}"
-             onclick="setListYear('${yr}')">${yr}</button>`
-  ).join('');
+  const years = [...new Set(books.map(b => b.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
 
-  // Status chips
-  const statusChips = ['전체', '완독', '읽는 중', '읽을 예정', '중도 하차'].map(s =>
-    `<button class="cov-chip ${listStatus === s ? 'active' : ''}"
-             onclick="setListStatus('${s}')">${s}</button>`
-  ).join('');
-
-  // Apply both filters
   let filtered = books;
   if (listYear   !== '전체') filtered = filtered.filter(b => b.year === listYear);
   if (listStatus !== '전체') filtered = filtered.filter(b => b.status === listStatus);
@@ -940,8 +987,12 @@ function renderList(books) {
   });
 
   el.innerHTML =
-    `<div class="cov-chips">${yearChips}</div>` +
-    `<div class="cov-chips" style="margin-top:-4px">${statusChips}</div>` +
+    fBtn('list', listYear, listStatus) +
+    `<div class="filter-panel${filterOpen.list ? ' open' : ''}">` +
+      `<div class="cov-chips">${yearChipsHTML(years, listYear, 'setListYear')}</div>` +
+      `<div class="cov-chips" style="margin-top:-4px">${statusChipsHTML(listStatus, 'setListStatus')}</div>` +
+    `</div>` +
+    fResult(listYear, listStatus, sorted.length) +
     (sorted.length
       ? `<div class="rows rows-list">${sorted.map(listRowHTML).join('')}</div>`
       : empty('📖', '조건에 맞는 책이 없어요.'));
@@ -1004,34 +1055,28 @@ function rowHTML(b) {
 // ── 2. 북커버 ──────────────────────────────────────────
 function renderCovers(books) {
   const el = document.getElementById('v-covers');
-  const done = books.filter(b => b.status === '완독');
-  if (!done.length) { el.innerHTML = empty('🖼️', '완독한 책이 없어요.'); return; }
+  if (!books.length) { el.innerHTML = empty('🖼️', '아직 기록된 책이 없어요.'); return; }
 
-  // Unique years from endDate, newest first
-  const years = [...new Set(
-    done.map(b => b.endDate ? b.endDate.slice(0, 4) : null).filter(Boolean)
-  )].sort((a, b) => Number(b) - Number(a));
+  const years = [...new Set(books.map(b => b.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
 
-  const chipsHTML = ['전체', ...years].map(yr =>
-    `<button class="cov-chip ${coversYear === yr ? 'active' : ''}"
-             onclick="setCoversYear('${yr}')">${yr}</button>`
-  ).join('');
-
-  const filtered = coversYear === '전체'
-    ? done
-    : done.filter(b => b.endDate && b.endDate.slice(0, 4) === coversYear);
+  let filtered = books;
+  if (coversYear   !== '전체') filtered = filtered.filter(b => b.year === coversYear);
+  if (coversStatus !== '전체') filtered = filtered.filter(b => b.status === coversStatus);
 
   el.innerHTML =
-    `<div class="cov-chips">${chipsHTML}</div>` +
+    fBtn('covers', coversYear, coversStatus) +
+    `<div class="filter-panel${filterOpen.covers ? ' open' : ''}">` +
+      `<div class="cov-chips">${yearChipsHTML(years, coversYear, 'setCoversYear')}</div>` +
+      `<div class="cov-chips" style="margin-top:-4px">${statusChipsHTML(coversStatus, 'setCoversStatus')}</div>` +
+    `</div>` +
+    fResult(coversYear, coversStatus, filtered.length) +
     (filtered.length
       ? `<div class="grid">${[...filtered].reverse().map(gcardHTML).join('')}</div>`
-      : empty('🖼️', '해당 연도의 완독 책이 없어요.'));
+      : empty('🖼️', '조건에 맞는 책이 없어요.'));
 }
 
-function setCoversYear(yr) {
-  coversYear = yr;
-  render();
-}
+function setCoversYear(yr)   { coversYear = yr; render(); }
+function setCoversStatus(s)  { coversStatus = s; render(); }
 
 function gcardHTML(b) {
   const img = b.cover
@@ -1052,10 +1097,29 @@ function gcardHTML(b) {
 // ── 3. 문장 ────────────────────────────────────────────
 function renderQuotes(books) {
   const el = document.getElementById('v-quotes');
-  const list = [...books].reverse().filter(b => b.bestSentence?.trim());
-  if (!list.length) { el.innerHTML = empty('💬', '인상 깊은 문장이 기록된 책이 없어요.'); return; }
-  el.innerHTML = `<div class="quotes">${list.map(qcardHTML).join('')}</div>`;
+
+  const years = [...new Set(books.map(b => b.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
+
+  let filtered = books;
+  if (quotesYear   !== '전체') filtered = filtered.filter(b => b.year === quotesYear);
+  if (quotesStatus !== '전체') filtered = filtered.filter(b => b.status === quotesStatus);
+
+  const list = [...filtered].reverse().filter(b => b.bestSentence?.trim());
+
+  el.innerHTML =
+    fBtn('quotes', quotesYear, quotesStatus) +
+    `<div class="filter-panel${filterOpen.quotes ? ' open' : ''}">` +
+      `<div class="cov-chips">${yearChipsHTML(years, quotesYear, 'setQuotesYear')}</div>` +
+      `<div class="cov-chips" style="margin-top:-4px">${statusChipsHTML(quotesStatus, 'setQuotesStatus')}</div>` +
+    `</div>` +
+    fResult(quotesYear, quotesStatus, list.length) +
+    (list.length
+      ? `<div class="quotes">${list.map(qcardHTML).join('')}</div>`
+      : empty('💬', '조건에 맞는 문장이 없어요.'));
 }
+
+function setQuotesYear(yr)   { quotesYear = yr; render(); }
+function setQuotesStatus(s)  { quotesStatus = s; render(); }
 
 function qcardHTML(b) {
   const cov = b.cover
@@ -1092,26 +1156,22 @@ function hexShades(hex, n) {
 
 function renderGenre(books) {
   const el = document.getElementById('v-genre');
-  const allDone = books.filter(b => b.status === '완독');
 
-  // Year chips from endDate of all 완독 books
-  const years = [...new Set(
-    allDone.map(b => b.endDate ? b.endDate.slice(0, 4) : null).filter(Boolean)
-  )].sort((a, b) => Number(b) - Number(a));
-  const chipsHTML = ['전체', ...years].map(yr =>
-    `<button class="cov-chip ${genreYear === yr ? 'active' : ''}"
-             onclick="setGenreYear('${yr}')">${yr}</button>`
-  ).join('');
+  const years = [...new Set(books.map(b => b.year).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
 
-  // Filter to 완독 with category, optionally by year
-  const base = allDone.filter(b => b.category);
-  const filtered = genreYear === '전체'
-    ? base
-    : base.filter(b => b.endDate && b.endDate.slice(0, 4) === genreYear);
+  let filtered = books.filter(b => b.category);
+  if (genreYear   !== '전체') filtered = filtered.filter(b => b.year === genreYear);
+  if (genreStatus !== '전체') filtered = filtered.filter(b => b.status === genreStatus);
+
+  const filterHTML =
+    fBtn('genre', genreYear, genreStatus) +
+    `<div class="filter-panel${filterOpen.genre ? ' open' : ''}">` +
+      `<div class="cov-chips">${yearChipsHTML(years, genreYear, 'setGenreYear')}</div>` +
+      `<div class="cov-chips" style="margin-top:-4px">${statusChipsHTML(genreStatus, 'setGenreStatus')}</div>` +
+    `</div>`;
 
   if (!filtered.length) {
-    el.innerHTML = `<div class="cov-chips">${chipsHTML}</div>` +
-      empty('📊', '완독한 책의 장르 데이터가 없어요.');
+    el.innerHTML = filterHTML + empty('📊', '장르 데이터가 있는 책이 없어요.');
     return;
   }
 
@@ -1121,7 +1181,8 @@ function renderGenre(books) {
   const max = sorted[0][1];
 
   const rowsHTML = sorted.map(([cat, n]) => {
-    const color = GCOLORS[cat.trim()] || GCOLORS[cat] || '#95a5a6';
+    const catKey = cat.trim().replace(/\//g, '·');
+    const color = GCOLORS[catKey] || GCOLORS[cat.trim()] || GCOLORS[cat] || '#95a5a6';
     const isOpen = openGenre === cat;
     // Sub-category breakdown
     const subBooks = filtered.filter(b => b.category === cat && b.subCategory?.trim());
@@ -1159,16 +1220,13 @@ function renderGenre(books) {
   }).join('');
 
   el.innerHTML =
-    `<div class="cov-chips">${chipsHTML}</div>` +
-    `<div style="margin-bottom:10px;font-size:11px;color:var(--muted)">완독 기준 · ${filtered.length}권</div>` +
+    filterHTML +
+    fResult(genreYear, genreStatus, filtered.length) +
     `<div class="chart">${rowsHTML}</div>`;
 }
 
-function setGenreYear(yr) {
-  genreYear = yr;
-  openGenre = null;
-  render();
-}
+function setGenreYear(yr)  { genreYear = yr; openGenre = null; render(); }
+function setGenreStatus(s) { genreStatus = s; openGenre = null; render(); }
 
 function toggleGenre(cat) {
   openGenre = openGenre === cat ? null : cat;
