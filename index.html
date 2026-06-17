@@ -877,6 +877,8 @@ let coversYear  = '전체';
 let genreYear   = '전체';
 let openGenre   = null;
 let openYear    = null;
+let listYear    = '전체';
+let listStatus  = '전체';
 
 function load()    { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
 function persist(b){ localStorage.setItem(KEY, JSON.stringify(b)); }
@@ -907,14 +909,43 @@ function render() {
 function renderList(books) {
   const el = document.getElementById('v-list');
   if (!books.length) { el.innerHTML = empty('📖', '아직 기록된 책이 없어요.<br>첫 번째 책을 추가해 보세요!'); return; }
-  const sorted = [...books].sort((a, b) => {
+
+  // Year chips from ALL books' year field, newest first
+  const years = [...new Set(books.map(b => b.year).filter(Boolean))]
+    .sort((a, b) => Number(b) - Number(a));
+  const yearChips = ['전체', ...years].map(yr =>
+    `<button class="cov-chip ${listYear === yr ? 'active' : ''}"
+             onclick="setListYear('${yr}')">${yr}</button>`
+  ).join('');
+
+  // Status chips
+  const statusChips = ['전체', '완독', '읽는 중', '읽을 예정', '중도 하차'].map(s =>
+    `<button class="cov-chip ${listStatus === s ? 'active' : ''}"
+             onclick="setListStatus('${s}')">${s}</button>`
+  ).join('');
+
+  // Apply both filters
+  let filtered = books;
+  if (listYear   !== '전체') filtered = filtered.filter(b => b.year === listYear);
+  if (listStatus !== '전체') filtered = filtered.filter(b => b.status === listStatus);
+
+  const sorted = [...filtered].sort((a, b) => {
     if (!a.endDate && !b.endDate) return 0;
     if (!a.endDate) return 1;
     if (!b.endDate) return -1;
     return b.endDate.localeCompare(a.endDate);
   });
-  el.innerHTML = `<div class="rows rows-list">${sorted.map(listRowHTML).join('')}</div>`;
+
+  el.innerHTML =
+    `<div class="cov-chips">${yearChips}</div>` +
+    `<div class="cov-chips" style="margin-top:-4px">${statusChips}</div>` +
+    (sorted.length
+      ? `<div class="rows rows-list">${sorted.map(listRowHTML).join('')}</div>`
+      : empty('📖', '조건에 맞는 책이 없어요.'));
 }
+
+function setListYear(yr) { listYear = yr; render(); }
+function setListStatus(s) { listStatus = s; render(); }
 
 function listRowHTML(b) {
   const cov = b.cover
